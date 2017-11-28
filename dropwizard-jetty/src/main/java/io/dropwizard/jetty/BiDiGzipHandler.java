@@ -12,6 +12,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -22,6 +23,7 @@ import java.util.Enumeration;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
+import java.util.zip.ZipException;
 
 /**
  * An extension of {@link GzipHandler} which decompresses gzip- and deflate-encoded request
@@ -97,7 +99,7 @@ public class BiDiGzipHandler extends GzipHandler {
         return new WrappedServletRequest(request, input);
     }
 
-    private WrappedServletRequest wrapGzippedRequest(HttpServletRequest request) throws IOException {
+    private WrappedServletRequest wrapGzippedRequest(HttpServletRequest request, HttpServletResponse response) throws IOException {
         return new WrappedServletRequest(request, new GZIPInputStream(request.getInputStream(), inputBufferSize));
     }
 
@@ -278,6 +280,74 @@ public class BiDiGzipHandler extends GzipHandler {
             } else {
                 return super.getDateHeader(name);
             }
+        }
+    }
+
+    private static class GzipExceptionHandlingInputStream extends InputStream {
+
+        private final GZIPInputStream in;
+        private final HttpServletResponse response;
+
+        public GzipExceptionHandlingInputStream(GZIPInputStream in, HttpServletResponse response) {
+            this.in = in;
+            this.response = response;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            try {
+                return super.read(b, off, len);
+            } catch (ZipException e) {
+
+            }
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            try {
+                return super.skip(n);
+            } catch (ZipException e) {
+                throw e;
+            }
+        }
+
+        @Override
+        public int available() throws IOException {
+            return super.available();
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+        }
+
+        @Override
+        public synchronized void mark(int readlimit) {
+            super.mark(readlimit);
+        }
+
+        @Override
+        public synchronized void reset() throws IOException {
+            super.reset();
+        }
+
+        @Override
+        public boolean markSupported() {
+            return super.markSupported();
+        }
+
+        @Override
+        public int read() throws IOException {
+            return 0;
+        }
+
+        private void sendErrorResponse() {
+            if (!response.isCommitted()) {
+                response.setStatus(400);
+                response.getOutputStream();
+            }
+
+
         }
     }
 }
